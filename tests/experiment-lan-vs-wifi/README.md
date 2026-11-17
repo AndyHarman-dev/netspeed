@@ -23,7 +23,7 @@ The experiment reports two numbers:
 | Wi-Fi band and signal (`netsh wlan show interfaces`: Radio type, Channel, Signal, Receive rate) | 802.11ax, 5 GHz, channel 157, signal 94% (-41 dBm), receive rate 1201 Mbps |
 | Ethernet link speed (`Get-NetAdapter \| ft Name,Status,LinkSpeed`) | 1 Gbps (adapter `Ethernet`, Up) |
 | Test URL used by netspeed | `https://speed.cloudflare.com/__down?bytes=25000000` (default) |
-| speedtest.net server (name, city) | IXP CABASE - Servidor Nacional, Buenos Aires (Telecentro) |
+| speedtest.net server (name, city) | Telecentro, Buenos Aires (all six runs; the pre-check used IXP CABASE - Servidor Nacional, Buenos Aires) |
 | netspeed version (`netspeed --version`) | 0.1.0 |
 
 
@@ -153,7 +153,7 @@ On 2026-11-17, between 22:50 and 23:30 UTC, in Buenos Aires, on the laptop and r
 netspeed 0.1.0 and the default Cloudflare URL. A pre-check ([`precheck-findings.md`](precheck-findings.md))
 confirmed that the default URL reads within 3% of speedtest.net, so no URL change was needed. Six runs then
 alternated Wi-Fi and LAN (Wi-Fi off for LAN). Each run took a sequential netspeed measurement (10 x 25 MB), a
-`--count 12 --parallel 4` measurement, and a speedtest.net test against the same server (IXP CABASE, Buenos
-Aires). The tables use the median of the 3 runs per condition. The pre-check log notes that Tailscale was up;
-whether it was switched off for the six runs was not recorded. The run 2 LAN sequential stall above is the only
+`--count 12 --parallel 4` measurement, and a speedtest.net test against the same server (Telecentro, Buenos
+Aires; the pre-check used IXP CABASE). Tailscale, which was up during the pre-check, was switched off for all six
+runs. The tables use the median of the 3 runs per condition. The run 2 LAN sequential stall above is the only
 irregularity.
