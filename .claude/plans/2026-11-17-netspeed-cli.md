@@ -346,6 +346,18 @@ run `uv run python tests/experiment-lan-vs-wifi/compute.py` and get a markdown t
   reference to `netspeed` (only speedtest.net references in the experiment remain), dropped the PATH/name-clash note, renamed
   the local dir to `~/dev/netspeed` and this plan to `2026-11-17-netspeed-cli.md`, pointed `origin` at the new URL and pushed `main`.
   The earlier change-log entries keep the old name as history. Verification: verified the remote HEAD via `git ls-remote --symref`.
+- **2026-11-17**: context: implement Phases 1–5 and 7 under ub-mode on `feat/netspeed-cli` (branched from `main` @ 99e0227).
+  Actions: skeleton, measurement core plus `--parallel`, CLI, README/CI, experiment kit. The user wrote `percentages()` in
+  `compute.py`; I fixed its accuracy line (divided the metric name, not its value; missing ×100) and a wrong expected value in
+  my own test. Quality gates: added `coverage` to the dev group (uv venvs have no pip, so crapper scored 0%), split
+  `measure.run` (CRAP 10.0 → max 7), killed 10 surviving mutants with boundary tests, and deleted dead code.
+  `/code-review low` produced 3 findings. All 3 were applied after verification: Ctrl-C was ignored, which was my own regression
+  from deleting the single-worker fast path, so the mutant I'd called "equivalent" wasn't; a failure didn't abort in-flight
+  downloads; a malformed port crashed with a traceback. Decisions that differ from the plan: workers stop per body chunk, not
+  only between requests, and worker 0 runs on the calling thread. `httpx.Response(content=...)` can't be streamed, so test
+  mocks use `ByteStream`. mutator skips `tests/`, so `compute.py` has no mutation score. Verification: 50 tests; crapper worst 7.0 at
+  100% coverage; dryer none at 0.8; mutator 33/33. Live run: seq ≈ par ≈ 31 Mbit/s, parallel wall 10.4 s vs 36.1 s summed.
+  Live SIGINT stops in 0.0 s / 0.1 s. CI: see the push. Phase 6 (the Windows experiment) needs user action.
 
 ## Decisions Log
 
