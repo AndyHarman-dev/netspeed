@@ -218,7 +218,9 @@ run `uv run python tests/experiment-lan-vs-wifi/compute.py` and get a markdown t
 **Problems / threats to validity.**
 1. **Windows may keep routing over Wi-Fi while the cable is plugged in**, so the "LAN" run silently measures Wi-Fi.
 2. **Single-stream vs multi-stream**: our tool will likely read below speedtest.net. That's expected, and the
-   accuracy % should show it honestly, not hide it.
+   accuracy % should show it honestly, not hide it. The less obvious effect is that it can also **compress the
+   LAN gain**. If one TCP stream to the test server tops out below the wired line rate, the tool's LAN number hits
+   that ceiling, and the tool shows a smaller LAN-over-Wi-Fi gain than speedtest.net does.
 3. **The ISP plan as the ceiling**: if the plan is slower than the Wi-Fi link, LAN won't look "considerably better".
    The report must say what was measured, not what was hoped for.
 4. Time-of-day and congestion drift, which alternating runs mitigate.
@@ -230,24 +232,32 @@ run `uv run python tests/experiment-lan-vs-wifi/compute.py` and get a markdown t
      (`netsh wlan show interfaces`), Ethernet link speed (`Get-NetAdapter | ft Name,Status,LinkSpeed`).
   2. Wi-Fi condition: cable unplugged. LAN condition: cable plugged **and Wi-Fi turned off** (fixes problem 1).
   3. Close heavy apps and pause OneDrive and Windows Update. VPN off.
-  4. Order W, L, W, L, W, L. Each run: `netspeed --json > raw/<cond>-<n>.json`, then speedtest.net in the browser
+  4. Before the real runs, do one LAN pre-check against the default Cloudflare URL (anycast, so it is served from a
+     nearby edge). If it reads far below speedtest.net on LAN, pick a large file on a nearby fast server
+     (e.g. your ISP's or a local mirror's test file), use that same URL for **every** run, and record it.
+  5. Order W, L, W, L, W, L. Each run: `netspeed --json > raw/<cond>-<n>.json`, then speedtest.net in the browser
      with the same server for every run (note the server name) → record download Mbit/s.
-  5. Fill `results.csv`: `run,condition,tool_mbps,speedtest_mbps,timestamp,notes`.
+  6. Fill `results.csv`: `run,condition,tool_mbps,speedtest_mbps,timestamp,notes`.
 - `compute.py` (stdlib only): medians per condition →
   - LAN gain (tool) = `(L_tool − W_tool) / W_tool × 100%`
   - LAN gain (speedtest.net) = the same with speedtest.net numbers
   - Accuracy per condition = `tool / speedtest × 100%`
   - Prints a markdown table to paste into the README. Unit tests for it live in `tests/unit/test_experiment_compute.py`
     (import by path).
-- README sections: Goal, Setup, Protocol, Raw results, Results (table), Conclusion. The conclusion
-  emphasises the LAN-vs-Wi-Fi % difference and states the caveats above.
+- README sections: Goal, Setup, **"What each tool measures"** (single sequential stream to one URL vs speedtest.net's
+  multi-stream test to a nearby server, explained *before* any numbers), Protocol, Raw results, Results (table),
+  Conclusion. The conclusion emphasises the LAN-vs-Wi-Fi % difference and states the caveats above.
 
 ## Phase 6 — Run the experiment (user action) and write it up
 
 **Model: Sonnet 5** — Filling in numbers and writing prose from the data you provide.
-**Escalate/stop if:** the LAN gain measured by the tool and by speedtest.net disagree in sign, or accuracy is below
-~50% or above ~120%. That points to a measurement problem in the tool or the protocol, so stop and debug before
-writing conclusions.
+**Escalate/stop if:**
+- The tool's and speedtest.net's LAN gains **disagree in sign**, or accuracy is **above ~120%** (most likely a cache
+  hit or a byte-counting bug). That is a likely tool or protocol bug, so debug before writing anything.
+- The tool's LAN gain is **much smaller** than speedtest.net's (e.g. under half of it), *or* accuracy is under ~50%.
+  This is not automatically a bug, because it's the expected single-stream ceiling (threat 2). Check whether the tool's
+  LAN number is pinned near a constant while speedtest.net's isn't. If it is, rerun with a nearer or faster test URL
+  before writing conclusions. If it persists, report it as a documented limitation; don't treat it as a failure.
 
 **Current State.** The kit exists, with no data.
 
@@ -285,6 +295,10 @@ writing conclusions.
   Interviewed the user (12 questions) and wrote this plan. Decisions: proposed the command name `netspeed` to avoid shadowing
   Ookla's `speedtest`. Flagged that the first push to the empty GitHub repo sets the default branch. Verification: unverified
   (nothing implemented yet).
+- **2026-11-17**: context: a side-agent note on single-stream vs speedtest.net multi-stream. Actions: added the
+  LAN-gain-compression threat, a LAN pre-check step to pick a nearby test URL, and a "What each tool measures" section
+  ahead of the results. Split the Phase 6 tripwire into "likely bug" (sign mismatch, >120%) and "expected
+  ceiling" (low accuracy or compressed gain → try a nearer URL, then document). Verification: unverified (plan-only change).
 
 ## Decisions Log
 
