@@ -102,13 +102,37 @@ the speed down. With 12, all four connections stay busy until the end.
   connection.
 - Only download speed is measured, not upload or latency.
 
-## What could be done better
+## If we had more time
+
+What we would improve next, roughly in order of value. Most of it comes from what the
+[Wi-Fi vs LAN experiment](tests/experiment-lan-vs-wifi/README.md) showed.
 
 - **Balance `--count` across connections automatically.** Today an uneven split (10 over 4 is 3, 3, 2, 2) is
   left to the user to avoid; the tip under [Parallel mode](#parallel-mode) is the only guard. `netspeed` could
   instead round `--count` up to the next multiple of `--parallel` (with a note on stderr), or keep every
   connection busy by handing out requests from a shared queue rather than in fixed turns, so the tail of the
   run never drops below N connections. The sequential default is unaffected either way.
+- **Report steady-state speed next to the overall figure.** netspeed reads a steady 3 to 4% below speedtest.net,
+  because it divides by the whole wall-clock time, connection setup included. Timing the first byte separately
+  and reporting the throughput after it would show both numbers: what one full download costs, and what
+  the line carries once data is flowing.
+- **Flag stalls between requests.** In one experiment run, 3 s passed outside any request and the result
+  dropped by 4%, with nothing in the output to say why. The JSON already holds per-request times, so netspeed
+  could warn when wall-clock time and summed request time disagree by more than a small margin.
+- **Measure upload and latency.** Only download is measured today. The experiment's upload numbers had to come
+  from speedtest.net. An upload mode (POST a generated body) and a latency/jitter probe (time a tiny request
+  several times) would cover the other two figures people expect from a speed test.
+- **Choose the number of connections automatically.** Instead of a fixed `--parallel N`, netspeed could add
+  connections while the speed keeps rising and stop when it levels off. On a fast line that finds the right
+  parallelism without guesswork.
+- **Offer a time-based mode.** `--duration 15` would download until the time is up rather than for a fixed
+  count. A slow line would no longer take minutes, and a fast line would no longer finish too quickly for a
+  stable reading.
+- **Fall back to another server.** The default depends on one Cloudflare endpoint. A short list of
+  alternatives, tried in order, would keep netspeed working when one is slow or unreachable.
+- **Validate on a faster line.** The agreement with speedtest.net is proven at about 33 Mbit/s. Repeating the
+  experiment on a line of several hundred Mbit/s would test the sequential mode's single-connection ceiling
+  and confirm that `--parallel` closes it.
 
 ## Experiment: Wi-Fi vs LAN
 
