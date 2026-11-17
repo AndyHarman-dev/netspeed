@@ -30,20 +30,23 @@ root README/CLAUDE.md. The root README only links to it.
 | HTTP | `httpx` (the only runtime dependency) |
 | CLI parsing | stdlib `argparse`, to avoid a second dependency |
 | Units | **Mbit/s** (10^6 bits/s, same as speedtest.net). Data volume shown in **MB** (10^6 bytes). |
-| Speed formula | `total_bytes × 8 / total_elapsed_seconds / 1e6` (aggregate). The average request time is printed separately. |
+| Speed formula | `total_bytes × 8 / wall_clock_seconds / 1e6` (aggregate). The wall clock runs from the first request's start to the last request's end. In sequential mode that equals the sum of request times plus a negligible gap. The average request time (mean of per-request durations) is printed separately. |
 | Connections | One keep-alive client by default, with a random cache-busting query param per request. `--no-keepalive` opens a fresh client per request. |
-| Flags | `URL` (optional positional, default test file), `--count` (default 10), `--timeout` (seconds), `--json`, `--no-keepalive` |
+| Flags | `URL` (optional positional, default test file), `--count` (default 10), `--timeout` (seconds), `--json`, `--no-keepalive`, `--parallel N` (default 1), `--version` |
 | Default URL | `https://speed.cloudflare.com/__down?bytes=25000000` (25 MB, uncached, global CDN) |
 | Tests layout | `tests/unit/` (pytest, the only collected path) + `tests/experiment-lan-vs-wifi/` (manual experiment) |
 | Experiment baseline | Same router: Wi-Fi vs Ethernet cable |
 | Experiment trials | 3 alternating runs per condition (W, L, W, L, W, L), with medians used for every % |
 | Reported % | LAN gain over Wi-Fi (tool and speedtest.net), plus tool ÷ speedtest.net per condition |
 | CI | GitHub Actions: ruff + pytest on ubuntu / windows / macos |
-| Git | Commit the scaffold and plan locally now. Push only after the plan is approved. |
+| Git | `main` pushed to GitHub as the default branch (user OK, 2026-11-17). Feature work happens on branches off `main`. |
+| Command / package name | `speedtest` (user decision 2026-11-17, overriding the proposed `netspeed`) |
+| `--parallel N` | Optional, default `1`, which is the specified sequential behaviour and stays untouched. `N > 1` spreads the same `--count` requests over N concurrent connections. It exists **only** to give an apples-to-apples comparison with speedtest.net's multi-stream test. |
 
-**Proposed (overridable) — command name `netspeed`, package `netspeed`.** The repo stays `speedtest`, but a
-`speedtest` console command would shadow Ookla's official `speedtest` CLI and `speedtest-cli` on PATH,
-and those are the very tools we cross-check against. If you'd rather keep `speedtest`, say so before Phase 1.
+**Name-clash note.** The command `speedtest` shares its name with Ookla's official CLI and `speedtest-cli`. uv installs
+tools in isolated environments, so the Python import never clashes. Only PATH order matters if one of those is also
+installed. The README gets a "check with `where speedtest` (Windows) / `which speedtest`" note, and `speedtest --version`
+prints our own name and version so the user can tell which one ran.
 
 ## Target layout
 
@@ -51,9 +54,9 @@ and those are the very tools we cross-check against. If you'd rather keep `speed
 speedtest/
 ├── .github/workflows/ci.yml
 ├── .claude/plans/
-├── src/netspeed/
+├── src/speedtest/
 │   ├── __init__.py        # __version__
-│   ├── __main__.py        # python -m netspeed
+│   ├── __main__.py        # python -m speedtest
 │   ├── cli.py             # argparse, output formatting, exit codes
 │   ├── measure.py         # httpx request loop, timing (injectable transport + clock)
 │   └── stats.py           # pure maths: aggregate speed, avg time, unit conversion
@@ -98,7 +101,7 @@ GitHub has a sensible default branch.
 
 **Current State.** There is no Python project.
 
-**Desired State.** `uv sync` works, `uv run netspeed --help` prints usage, `uv run pytest` collects
+**Desired State.** `uv sync` works, `uv run speedtest --help` prints usage, `uv run pytest` collects
 `tests/unit` only, and `uv run ruff check` is clean. CLAUDE.md holds the dev commands and conventions.
 
 **Problems.** pytest would try to collect `tests/experiment-lan-vs-wifi/compute.py` and its folder.
@@ -106,11 +109,11 @@ GitHub has a sensible default branch.
 **Solutions.**
 ```toml
 [project]
-name = "netspeed"
+name = "speedtest"
 requires-python = ">=3.10"
 dependencies = ["httpx>=0.27"]
 [project.scripts]
-netspeed = "netspeed.cli:main"
+speedtest = "speedtest.cli:main"
 [dependency-groups]
 dev = ["pytest", "ruff"]
 [tool.pytest.ini_options]
@@ -120,7 +123,7 @@ requires = ["hatchling"]
 build-backend = "hatchling.build"
 ```
 - Add a `.gitignore` (venv, `__pycache__`, dist, `.ruff_cache`) and pin `.python-version` to 3.12.
-- CLAUDE.md gets the purpose, layout, commands (`uv sync`, `uv run pytest`, `uv run ruff check`, `uv run netspeed`),
+- CLAUDE.md gets the purpose, layout, commands (`uv sync`, `uv run pytest`, `uv run ruff check`, `uv run speedtest`),
   the rules "keep README/CLAUDE.md updated with every user-visible change" and "the experiment lives only in tests/experiment-*".
 
 ## Phase 2 — Measurement core (`stats.py`, `measure.py`)
@@ -151,11 +154,45 @@ returns per-request `(status, bytes, seconds)`, and `stats.summarise(...)` produ
   and no partial speed is reported.
 - With `keepalive=False`, create a fresh `httpx.Client` per request. Otherwise use one client for the whole run.
   `follow_redirects=True`.
-- `stats.py`: `mbps = total_bytes * 8 / total_seconds / 1e6`, `avg_s = total_seconds / n`, `total_mb = total_bytes / 1e6`.
+- `stats.py`: `mbps = total_bytes * 8 / wall_seconds / 1e6`, `avg_s = sum(request_seconds) / n`, `total_mb = total_bytes / 1e6`.
+  `RunResult` carries `wall_seconds` (run_end − run_start) from the start, so Phase 2b doesn't have to change the maths.
   Guard against zero seconds and zero bytes.
 - Unit tests: maths (known inputs → exact output), cache-bust param appended and existing params preserved,
   byte counting over a MockTransport body, fake clock → exact timings, a 404 raises, keepalive=False
   builds N clients (spy), and count is respected.
+
+## Phase 2b — `--parallel N` (comparison mode)
+
+**Model: Sonnet 5** — A thread pool over the Phase 2 single-request function. Correctness is checkable with
+MockTransport plus a fake clock: total bytes, request count, and wall-clock vs per-request times.
+**Escalate/stop if:** sharing a single `httpx.Client` across threads shows contention or errors. In that case switch to
+one client per worker. If *that* still serialises (wall clock ≈ sum of request times in a live run), stop. The
+concurrency model then needs a rethink, possibly `httpx.AsyncClient`, before going further.
+
+**Current State.** After Phase 2, only sequential runs exist.
+
+**Desired State.** `run(..., parallel=N)` runs the same `count` requests across N workers. Each worker owns one
+`httpx.Client` (keep-alive per worker, or fresh per request with `--no-keepalive`). With `parallel=1` the code path is
+**identical** to the sequential mode, so the specified feature set is unchanged.
+
+**Problems.**
+1. A summed duration is meaningless under concurrency, because overlapping requests would be double-counted.
+2. One failing worker must not leave the others running or report a partial speed.
+3. `--parallel` larger than `--count` would leave idle workers.
+
+**Solutions.**
+- Use `concurrent.futures.ThreadPoolExecutor(max_workers=N)`. Request indices come from a shared queue, and each worker
+  uses its own client (created lazily in a `threading.local`).
+- Record `run_start = clock()` before submitting and `run_end = clock()` after all futures finish. Speed uses that wall
+  clock (the formula in the decisions table). Per-request durations are still recorded for the average.
+- On the first exception: cancel pending futures, close clients, and raise `MeasureError`.
+- Clamp `N` to `count`, and warn on stderr when clamped.
+- Unit tests:
+  - `parallel=1` produces the same result as the sequential path.
+  - `parallel=4, count=10` gives 10 requests and correct total bytes.
+  - With a fake clock where requests overlap, wall clock < sum and Mbit/s uses the wall clock.
+  - A failing request raises and reports no speed.
+  - The clamp warning fires.
 
 ## Phase 3 — CLI (`cli.py`)
 
@@ -166,7 +203,7 @@ capturing stdout/exit codes.
 
 **Desired State.**
 ```
-$ netspeed https://example.com/big.jpg
+$ speedtest https://example.com/big.jpg
 Knocking on https://example.com/big.jpg — 10 requests, keep-alive
   #1  2.31 s  25.00 MB
   ...
@@ -175,8 +212,10 @@ Average request:   2.284 s
 Downloaded total:  250.00 MB
 Download speed:    87.56 Mbit/s
 ```
-`--json` prints a single JSON object (url, count, keepalive, per-request list, totals, `mbps`,
-`timestamp`, `version`) and nothing else on stdout.
+`--json` prints a single JSON object (url, count, parallel, keepalive, per-request list, totals, wall-clock
+seconds, `mbps`, `timestamp`, `version`) and nothing else on stdout. With `--parallel N` the header reads
+`10 requests over 4 parallel connections, keep-alive`. `--version` prints `speedtest (AndyHarman-dev) X.Y.Z`, so it is
+distinguishable from Ookla's CLI.
 
 **Problems.**
 1. Windows consoles may choke on non-ASCII (`—`, `·`).
@@ -185,7 +224,7 @@ Download speed:    87.56 Mbit/s
 **Solutions.**
 - Output is ASCII only (`-` not `—`). Progress lines go to stderr, and the summary or JSON goes to stdout.
 - Exit codes: `0` ok, `1` network/HTTP error (message on stderr), `2` bad args (argparse default).
-- Validation: `--count >= 1`, `--timeout > 0`, URL must be http(s).
+- Validation: `--count >= 1`, `--parallel >= 1`, `--timeout > 0`, URL must be http(s).
 - Tests: `main([...])` with a monkeypatched `measure.run` → text format, JSON is valid and parseable, error exit 1,
   bad count exit 2.
 
@@ -197,12 +236,13 @@ Download speed:    87.56 Mbit/s
 
 **Desired State.** README covers what the tool does, install (uv on Windows/macOS/Linux, including the uv install one-liners),
 usage and flags, **units section** (Mbit/s = 10^6 bit/s, MB = 10^6 bytes, formula), how measurement works (sequential,
-full body, cache-bust, keep-alive), limits (a single TCP stream reads lower than multi-stream speedtest.net on
-fast links), and a link to `tests/experiment-lan-vs-wifi/README.md`. CI is green on ubuntu, windows and macos.
+full body, cache-bust, keep-alive), the optional `--parallel N` comparison mode (and why it exists), limits (a single
+TCP stream reads lower than multi-stream speedtest.net on fast links), a PATH note about Ookla's `speedtest`
+(`where speedtest` / `speedtest --version`), and a link to `tests/experiment-lan-vs-wifi/README.md`. CI is green on ubuntu, windows and macos.
 
 **Solutions.**
 - `.github/workflows/ci.yml`: `astral-sh/setup-uv`, matrix `os × python [3.10, 3.13]`,
-  `uv sync`, `uv run ruff check`, `uv run pytest`, plus a smoke test `uv run netspeed --help`.
+  `uv sync`, `uv run ruff check`, `uv run pytest`, plus a smoke test `uv run speedtest --help`.
   No live network test in CI, because it would be flaky.
 
 ## Phase 5 — Experiment kit (`tests/experiment-lan-vs-wifi/`)
@@ -235,13 +275,15 @@ run `uv run python tests/experiment-lan-vs-wifi/compute.py` and get a markdown t
   4. Before the real runs, do one LAN pre-check against the default Cloudflare URL (anycast, so it is served from a
      nearby edge). If it reads far below speedtest.net on LAN, pick a large file on a nearby fast server
      (e.g. your ISP's or a local mirror's test file), use that same URL for **every** run, and record it.
-  5. Order W, L, W, L, W, L. Each run: `netspeed --json > raw/<cond>-<n>.json`, then speedtest.net in the browser
-     with the same server for every run (note the server name) → record download Mbit/s.
-  6. Fill `results.csv`: `run,condition,tool_mbps,speedtest_mbps,timestamp,notes`.
+  5. Order W, L, W, L, W, L. Each run has three back-to-back measurements:
+     - `speedtest --json > raw/<cond>-<n>-seq.json` (the specified mode)
+     - `speedtest --parallel 4 --json > raw/<cond>-<n>-par.json` (comparison mode)
+     - speedtest.net in the browser, using the same server for every run (note the server name). Record the download Mbit/s.
+  6. Fill `results.csv`: `run,condition,tool_seq_mbps,tool_par_mbps,speedtest_mbps,timestamp,notes`.
 - `compute.py` (stdlib only): medians per condition →
-  - LAN gain (tool) = `(L_tool − W_tool) / W_tool × 100%`
-  - LAN gain (speedtest.net) = the same with speedtest.net numbers
-  - Accuracy per condition = `tool / speedtest × 100%`
+  - LAN gain, separately for `tool_seq`, `tool_par` and `speedtest.net`: `(L − W) / W × 100%`
+  - Accuracy per condition for both modes: `tool_par / speedtest × 100%` (the apples-to-apples headline) and
+    `tool_seq / speedtest × 100%` (shows the single-stream ceiling)
   - Prints a markdown table to paste into the README. Unit tests for it live in `tests/unit/test_experiment_compute.py`
     (import by path).
 - README sections: Goal, Setup, **"What each tool measures"** (single sequential stream to one URL vs speedtest.net's
@@ -252,12 +294,13 @@ run `uv run python tests/experiment-lan-vs-wifi/compute.py` and get a markdown t
 
 **Model: Sonnet 5** — Filling in numbers and writing prose from the data you provide.
 **Escalate/stop if:**
-- The tool's and speedtest.net's LAN gains **disagree in sign**, or accuracy is **above ~120%** (most likely a cache
-  hit or a byte-counting bug). That is a likely tool or protocol bug, so debug before writing anything.
-- The tool's LAN gain is **much smaller** than speedtest.net's (e.g. under half of it), *or* accuracy is under ~50%.
-  This is not automatically a bug, because it's the expected single-stream ceiling (threat 2). Check whether the tool's
-  LAN number is pinned near a constant while speedtest.net's isn't. If it is, rerun with a nearer or faster test URL
-  before writing conclusions. If it persists, report it as a documented limitation; don't treat it as a failure.
+- Either tool mode's LAN gain **disagrees in sign** with speedtest.net's, or either accuracy figure is **above ~120%**
+  (most likely a cache hit or a byte-counting bug). That is a likely tool or protocol bug, so debug before writing anything.
+- **`--parallel` accuracy is under ~50%**, or its LAN gain is under half of speedtest.net's. Parallel mode is the
+  apples-to-apples comparison, so a gap this large points at the test URL or server (rerun with a nearer or faster URL) or
+  at Phase 2b. Investigate before writing conclusions.
+- A low *sequential* accuracy or compressed sequential gain, **while parallel looks fine**, is the expected
+  single-stream ceiling (threat 2). Document it; it is not a failure.
 
 **Current State.** The kit exists, with no data.
 
@@ -274,7 +317,7 @@ run `uv run python tests/experiment-lan-vs-wifi/compute.py` and get a markdown t
 - `cd ~/dev/speedtest`, confirm the branch, run `/code-review low <branch>`, triage findings (apply, reject or escalate).
 - Ask whether to open a PR into `main`.
 
-**Routing:** All phases → Sonnet 5. Phase 2 has a tripwire (compression/byte semantics) and Phase 6 has a tripwire (implausible results).
+**Routing:** All phases → Sonnet 5. Tripwires: Phase 2 (compression/byte semantics), Phase 2b (concurrency serialising), Phase 6 (implausible results).
 
 ---
 
@@ -282,11 +325,11 @@ run `uv run python tests/experiment-lan-vs-wifi/compute.py` and get a markdown t
 
 | Phase | Check |
 |---|---|
-| 1 | `uv sync && uv run netspeed --help && uv run pytest && uv run ruff check` |
-| 2–3 | Unit tests green. A manual `uv run netspeed` against the default URL prints a plausible Mbit/s, which is cross-checked against speedtest.net on the Mac. |
+| 1 | `uv sync && uv run speedtest --help && uv run pytest && uv run ruff check` |
+| 2–3 | Unit tests green. A live `--parallel 4` run has wall clock clearly below the sum of request times. A manual `uv run speedtest` against the default URL prints a plausible Mbit/s, which is cross-checked against speedtest.net on the Mac. |
 | 4 | CI green on all 3 OSes |
 | 5 | `compute.py` unit tests green. A dry run on a sample CSV prints the table. |
-| 6 | Real Windows numbers in the CSV, with tool and speedtest.net gains of the same sign |
+| 6 | Real Windows numbers in the CSV. Both tool modes' gains have the same sign as speedtest.net's, and `--parallel` accuracy is within ~50–120%. |
 
 ## Change Log
 
@@ -299,6 +342,12 @@ run `uv run python tests/experiment-lan-vs-wifi/compute.py` and get a markdown t
   LAN-gain-compression threat, a LAN pre-check step to pick a nearby test URL, and a "What each tool measures" section
   ahead of the results. Split the Phase 6 tripwire into "likely bug" (sign mismatch, >120%) and "expected
   ceiling" (low accuracy or compressed gain → try a nearer URL, then document). Verification: unverified (plan-only change).
+- **2026-11-17**: context: user decisions are command name `speedtest`, an optional `--parallel` for the speedtest.net
+  comparison, and pushing `main` as the default. Actions: renamed netspeed → speedtest and added a PATH/`--version` note for the Ookla clash.
+  Added Phase 2b (`--parallel N`, default 1, which leaves the specified sequential mode unchanged). Changed the speed formula to
+  wall clock so it is correct under concurrency (identical in sequential mode). The experiment now records seq, par and
+  speedtest.net per run, and the Phase 6 tripwires key on parallel accuracy. Fast-forwarded `main` to the scaffold+plan commits and
+  pushed it as the GitHub default. Verification: push verified via `git ls-remote --symref`. The plan itself is still under user review.
 
 ## Decisions Log
 
