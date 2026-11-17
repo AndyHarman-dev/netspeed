@@ -102,6 +102,14 @@ the speed down. With 12, all four connections stay busy until the end.
   connection.
 - Only download speed is measured, not upload or latency.
 
+## What could be done better
+
+- **Balance `--count` across connections automatically.** Today an uneven split (10 over 4 is 3, 3, 2, 2) is
+  left to the user to avoid; the tip under [Parallel mode](#parallel-mode) is the only guard. `netspeed` could
+  instead round `--count` up to the next multiple of `--parallel` (with a note on stderr), or keep every
+  connection busy by handing out requests from a shared queue rather than in fixed turns, so the tail of the
+  run never drops below N connections. The sequential default is unaffected either way.
+
 ## Experiment: Wi-Fi vs LAN
 
 A controlled comparison on a Windows laptop (Wi-Fi vs wired Ethernet, cross-checked against
