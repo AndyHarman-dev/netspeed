@@ -13,18 +13,19 @@ The experiment reports two numbers:
 
 ## Setup
 
-> Fill this in before the first run.
+> Captured 2026-11-17. Rows marked _TODO_ are still open.
 
 | Item | Value |
 |---|---|
-| Laptop / Windows version | |
-| Router (model, Wi-Fi standard) | |
-| ISP plan (advertised download) | |
-| Wi-Fi band and signal (`netsh wlan show interfaces`: Radio type, Channel, Signal, Receive rate) | |
-| Ethernet link speed (`Get-NetAdapter \| ft Name,Status,LinkSpeed`) | |
-| Test URL used by netspeed | |
-| speedtest.net server (name, city) | |
-| netspeed version (`netspeed --version`) | |
+| Laptop / Windows version | MECHREVO Jiaolong15K (GM5BG0E), Windows 11 Home, build 26200 |
+| Router (model, Wi-Fi standard) | ISP-supplied Telecentro router (model not identified), Wi-Fi 6 (802.11ax) |
+| ISP plan (advertised download) | _TODO: from the bill_ |
+| Wi-Fi band and signal (`netsh wlan show interfaces`: Radio type, Channel, Signal, Receive rate) | 802.11ax, 5 GHz, channel 157, signal 94% (-41 dBm), receive rate 1201 Mbps |
+| Ethernet link speed (`Get-NetAdapter \| ft Name,Status,LinkSpeed`) | _TODO: re-check with the cable plugged in_ (at setup no wired adapter was connected) |
+| Test URL used by netspeed | `https://speed.cloudflare.com/__down?bytes=25000000` (default) |
+| speedtest.net server (name, city) | _TODO: after the first speedtest.net run_ |
+| netspeed version (`netspeed --version`) | 0.1.0 |
+
 
 ## What each tool measures
 
