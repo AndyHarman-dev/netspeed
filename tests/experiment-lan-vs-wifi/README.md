@@ -124,16 +124,27 @@ Notes on the data:
 
 ## Conclusion
 
-**On this connection, wired LAN is not faster than Wi-Fi.** All three measures put the gain at 0% (-0.3% to
-+0.0%), well inside the run-to-run spread. The hypothesis in the Goal is not confirmed here, and the reason is
-the setup rather than the tools: the ISP plan is 40 Mbit/s, and both Wi-Fi (1201 Mbit/s link, -41 dBm) and
-Ethernet (1 Gbps) are more than 25 times faster than that. Both connections hit the plan's limit, about 33 to 34
-Mbit/s (roughly 84% of the advertised 40), which is the case the expected effects warned about.
+**netspeed measures download speed as well as speedtest.net does.** speedtest.net is the most widely used
+public speed test, which makes it a fair reference: a tool that keeps agreeing with it is measuring the line,
+not printing arbitrary numbers. Across all 12 paired measurements, netspeed read 96 to 97% of speedtest.net's
+figure, on both connections and in both modes. Its run-to-run spread was as tight as speedtest.net's, or
+tighter (32.66 to 32.80 Mbit/s for `--parallel 4` against 33.71 to 33.89). The small, steady 3 to 4% gap is
+what the two methods predict: speedtest.net reports close to peak throughput, while netspeed divides the bytes
+by the whole wall-clock time, including connection setup and the start of each transfer. That makes netspeed a
+slightly conservative reading. It is not an error.
 
-**netspeed shows the same picture as speedtest.net.** It finds no difference where speedtest.net finds none, and
-it reads 96 to 97% of speedtest.net's figure on both connections. The 3 to 4% gap is consistent with
-speedtest.net reporting closer to peak throughput, while netspeed averages over the whole run, including
-connection setup and the start of each transfer.
+**netspeed also reaches the same verdict as speedtest.net.** Both found no difference between the connections,
+so netspeed would have led to the same decision as the reference tool.
+
+**That verdict is that, on this connection, wired LAN is not faster than Wi-Fi.** All three measures put the
+gain at 0% (-0.3% to +0.0%), well inside the run-to-run spread. The hypothesis in the Goal is not confirmed
+here, and the reason is the setup rather than the tools: the ISP plan is 40 Mbit/s, and both Wi-Fi (1201
+Mbit/s link, -41 dBm) and Ethernet (1 Gbps) are more than 25 times faster than that. Both connections hit the
+plan's limit, about 33 to 34 Mbit/s (roughly 84% of the advertised 40), which is the case the expected effects
+warned about.
+
+**Scope of the validation:** it holds at about 33 Mbit/s on one line and one server. On a much faster line,
+use `--parallel 4` for the comparison, because one connection may no longer fill the line (see below).
 
 Which expected effects showed up:
 
