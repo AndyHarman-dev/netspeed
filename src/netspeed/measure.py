@@ -50,13 +50,8 @@ def _cache_busted(url: str) -> httpx.URL:
     return httpx.URL(url).copy_merge_params({"_nocache": uuid.uuid4().hex})
 
 
-def _fetch(client: httpx.Client, url: str, index: int, clock: Clock) -> RequestResult:
-    t0 = clock()
-    with client.stream("GET", _cache_busted(url), headers=HEADERS) as response:
-        response.raise_for_status()
-        size = sum(len(chunk) for chunk in response.iter_raw())
-        status = response.status_code
-    return RequestResult(index=index, status=status, bytes=size, seconds=clock() - t0)
+class _Cancelled(Exception):
+    """Another worker failed (or Ctrl-C was pressed); abandon this download."""
 
 
 @dataclass(frozen=True)
@@ -72,11 +67,24 @@ class _Job:
     stop: threading.Event
 
 
+def _fetch(client: httpx.Client, job: _Job, index: int) -> RequestResult:
+    t0 = job.clock()
+    size = 0
+    with client.stream("GET", _cache_busted(job.url), headers=HEADERS) as response:
+        response.raise_for_status()
+        for chunk in response.iter_raw():
+            if job.stop.is_set():
+                raise _Cancelled
+            size += len(chunk)
+        status = response.status_code
+    return RequestResult(index=index, status=status, bytes=size, seconds=job.clock() - t0)
+
+
 def _fetch_once(job: _Job, shared: httpx.Client | None, index: int) -> RequestResult:
     if shared is not None:
-        return _fetch(shared, job.url, index, job.clock)
+        return _fetch(shared, job, index)
     with _make_client(job.timeout, job.transport) as fresh:
-        return _fetch(fresh, job.url, index, job.clock)
+        return _fetch(fresh, job, index)
 
 
 def _worker(job: _Job, indices: Iterable[int]) -> None:
@@ -84,21 +92,26 @@ def _worker(job: _Job, indices: Iterable[int]) -> None:
     shared = _make_client(job.timeout, job.transport) if job.keepalive else None
     try:
         for index in indices:
-            if job.stop.is_set():
-                return
             try:
                 job.record(_fetch_once(job, shared, index))
             except httpx.HTTPError as exc:
-                job.stop.set()
                 raise MeasureError(f"request #{index + 1} failed: {exc}") from exc
+    except _Cancelled:
+        return  # the worker that failed reports the error
+    except BaseException:
+        job.stop.set()  # any failure, Ctrl-C included, stops the other workers
+        raise
     finally:
         if shared is not None:
             shared.close()
 
 
 def _run_workers(job: _Job, slices: list[range]) -> None:
+    """Run slice 0 on the calling thread (so Ctrl-C reaches it) and the rest in a pool."""
     with ThreadPoolExecutor(max_workers=len(slices)) as pool:
-        for future in [pool.submit(_worker, job, s) for s in slices]:
+        others = [pool.submit(_worker, job, s) for s in slices[1:]]
+        _worker(job, slices[0])
+        for future in others:
             future.result()
 
 

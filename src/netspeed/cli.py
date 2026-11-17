@@ -7,7 +7,8 @@ import json
 import sys
 from dataclasses import asdict
 from datetime import datetime, timezone
-from urllib.parse import urlsplit
+
+import httpx
 
 from netspeed import __version__, measure
 from netspeed.measure import MeasureError, RequestResult, RunResult
@@ -31,8 +32,11 @@ def _positive_float(text: str) -> float:
 
 
 def _http_url(text: str) -> str:
-    parts = urlsplit(text)
-    if parts.scheme not in ("http", "https") or not parts.netloc:
+    try:
+        url = httpx.URL(text)
+    except httpx.InvalidURL as exc:
+        raise argparse.ArgumentTypeError(f"invalid URL {text!r}: {exc}") from exc
+    if url.scheme not in ("http", "https") or not url.host:
         raise argparse.ArgumentTypeError(f"not an http(s) URL: {text!r}")
     return text
 

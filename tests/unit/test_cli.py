@@ -100,6 +100,7 @@ def test_measure_error_exits_1_with_message(monkeypatch, capsys):
         ["--timeout", "0"],
         ["ftp://h/x"],
         ["not a url"],
+        ["http://h:abc/"],
     ],
 )
 def test_bad_arguments_exit_2(argv, fake_run):
