@@ -115,6 +115,9 @@ the speed down. With 12, all four connections stay busy until the end.
 A controlled comparison on a Windows laptop (Wi-Fi vs wired Ethernet, cross-checked against
 speedtest.net) is in [`tests/experiment-lan-vs-wifi/`](tests/experiment-lan-vs-wifi/README.md).
 
+Result: on a 40 Mbit/s plan both connections hit the plan's limit, so LAN showed no gain (0%). netspeed
+agreed with speedtest.net, reading 96 to 97% of its figure.
+
 ## Development
 
 ```sh

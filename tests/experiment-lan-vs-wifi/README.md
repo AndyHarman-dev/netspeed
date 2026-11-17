@@ -13,17 +13,17 @@ The experiment reports two numbers:
 
 ## Setup
 
-> Captured 2026-11-17. Rows marked _TODO_ are still open.
+> Captured 2026-11-17.
 
 | Item | Value |
 |---|---|
 | Laptop / Windows version | MECHREVO Jiaolong15K (GM5BG0E), Windows 11 Home, build 26200 |
 | Router (model, Wi-Fi standard) | ISP-supplied Telecentro router (model not identified), Wi-Fi 6 (802.11ax) |
-| ISP plan (advertised download) | _TODO: from the bill_ |
+| ISP plan (advertised download) | 40 Mbit/s |
 | Wi-Fi band and signal (`netsh wlan show interfaces`: Radio type, Channel, Signal, Receive rate) | 802.11ax, 5 GHz, channel 157, signal 94% (-41 dBm), receive rate 1201 Mbps |
-| Ethernet link speed (`Get-NetAdapter \| ft Name,Status,LinkSpeed`) | _TODO: re-check with the cable plugged in_ (at setup no wired adapter was connected) |
+| Ethernet link speed (`Get-NetAdapter \| ft Name,Status,LinkSpeed`) | 1 Gbps (adapter `Ethernet`, Up) |
 | Test URL used by netspeed | `https://speed.cloudflare.com/__down?bytes=25000000` (default) |
-| speedtest.net server (name, city) | _TODO: after the first speedtest.net run_ |
+| speedtest.net server (name, city) | IXP CABASE - Servidor Nacional, Buenos Aires (Telecentro) |
 | netspeed version (`netspeed --version`) | 0.1.0 |
 
 
@@ -90,16 +90,70 @@ Expected effects:
 
 ## Results
 
-> Paste the `compute.py` output here.
+Medians of 3 runs per condition, from `compute.py`:
+
+| Measure | Wi-Fi median (Mbit/s) | LAN median (Mbit/s) | LAN gain over Wi-Fi |
+|---|---:|---:|---:|
+| netspeed (sequential) | 32.4 | 32.3 | -0.3% |
+| netspeed --count 12 --parallel 4 | 32.7 | 32.7 | -0.1% |
+| speedtest.net | 33.8 | 33.8 | +0.0% |
+
+| netspeed accuracy vs speedtest.net | Wi-Fi | LAN |
+|---|---:|---:|
+| netspeed (sequential) | 96% | 96% |
+| netspeed --count 12 --parallel 4 | 97% | 97% |
+
+Spread across the 3 runs (min to max, Mbit/s):
+
+| Measure | Wi-Fi | LAN |
+|---|---|---|
+| netspeed (sequential) | 32.33 to 32.44 | 31.04 to 32.48 |
+| netspeed --count 12 --parallel 4 | 32.66 to 32.80 | 32.66 to 32.74 |
+| speedtest.net | 33.71 to 33.89 | 33.71 to 33.83 |
+
+Notes on the data:
+
+- Every request downloaded the full 25,000,000 bytes. Sequential requests took 6.03 to 6.30 s each.
+- **LAN run 2, sequential (31.04 Mbit/s)** is the one outlier. Its requests took as long as in every other run
+  (61.3 s in total), but its wall clock has 3.1 s outside any request, against about 0.4 s in the other runs. The
+  stall was before the first request or after the last one, not in the transfer. It does not move the median
+  (32.34 with or without it).
+- Upload (speedtest.net only, from the `notes` column): Wi-Fi median 93.5 Mbit/s, LAN median 90.2 Mbit/s. The
+  pre-check's 23% LAN deficit (one reading, 91 vs 118) shrank to about 4% over three runs each, which is
+  within run-to-run noise (86 to 99 Mbit/s across all six runs).
 
 ## Conclusion
 
-> To be written from the results. Cover:
-> - The LAN-over-Wi-Fi gain by each tool.
-> - Whether netspeed shows the difference.
-> - How close it is to speedtest.net.
-> - Which of the expected effects above showed up.
+**On this connection, wired LAN is not faster than Wi-Fi.** All three measures put the gain at 0% (-0.3% to
++0.0%), well inside the run-to-run spread. The hypothesis in the Goal is not confirmed here, and the reason is
+the setup rather than the tools: the ISP plan is 40 Mbit/s, and both Wi-Fi (1201 Mbit/s link, -41 dBm) and
+Ethernet (1 Gbps) are more than 25 times faster than that. Both connections hit the plan's limit, about 33 to 34
+Mbit/s (roughly 84% of the advertised 40), which is the case the expected effects warned about.
+
+**netspeed shows the same picture as speedtest.net.** It finds no difference where speedtest.net finds none, and
+it reads 96 to 97% of speedtest.net's figure on both connections. The 3 to 4% gap is consistent with
+speedtest.net reporting closer to peak throughput, while netspeed averages over the whole run, including
+connection setup and the start of each transfer.
+
+Which expected effects showed up:
+
+- *Sequential reads lower than speedtest.net:* only slightly (96%), and not more so on LAN. At 33 Mbit/s one
+  connection can fill the line, so the single-connection ceiling never came into play.
+- *Sequential shrinks the LAN gain:* not testable, since there was no gain to shrink.
+- *`--parallel 4` lands closer to speedtest.net:* yes, but only by about one point (97% vs 96%), for the same reason.
+- *Plan slower than the Wi-Fi link:* yes. This is the effect that decided the result.
+
+To actually show a LAN advantage, repeat the experiment where the line is faster than the Wi-Fi: a plan of
+several hundred Mbit/s or more, or a weaker Wi-Fi signal (another room, the 2.4 GHz band), or a LAN-local
+download server, which takes the ISP out of the path.
 
 ## How it was tested (brief)
 
-> One paragraph: date, place, the conditions, 3 alternating runs each, medians, and anything unusual.
+On 2026-11-17, between 22:50 and 23:30 UTC, in Buenos Aires, on the laptop and router in Setup, with
+netspeed 0.1.0 and the default Cloudflare URL. A pre-check ([`precheck-findings.md`](precheck-findings.md))
+confirmed that the default URL reads within 3% of speedtest.net, so no URL change was needed. Six runs then
+alternated Wi-Fi and LAN (Wi-Fi off for LAN). Each run took a sequential netspeed measurement (10 x 25 MB), a
+`--count 12 --parallel 4` measurement, and a speedtest.net test against the same server (IXP CABASE, Buenos
+Aires). The tables use the median of the 3 runs per condition. The pre-check log notes that Tailscale was up;
+whether it was switched off for the six runs was not recorded. The run 2 LAN sequential stall above is the only
+irregularity.
