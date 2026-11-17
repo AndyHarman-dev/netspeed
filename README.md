@@ -96,10 +96,31 @@ the connections in turn, so the default 10 over 4 connections splits 3, 3, 2, 2.
 two connections are still downloading, and on a link that one connection can't fill, that tail pulls
 the speed down. With 12, all four connections stay busy until the end.
 
-## Limits
+## Known problems and limits
+
+Known problems (behaviour that is wrong or misleading today):
+
+- **`--timeout` does not cap a whole request.** The help text says "per-request timeout", but it is passed to
+  httpx as a per-operation limit: connecting, and each wait for the next chunk of data. A download that
+  trickles in, with no single wait longer than the limit, can run far past `--timeout` seconds.
+- **An uneven `--parallel` split lowers the result.** With the default 10 requests over 4 connections, the split
+  is 3, 3, 2, 2, and the end of the run uses only two connections. Pick a `--count` that N divides evenly (see
+  [Parallel mode](#parallel-mode)).
+- **Stalls are not reported.** Time spent outside any request still counts in the wall clock, so it lowers the
+  speed, but nothing in the output points it out. In the experiment, one run lost 3 s this way (cause not
+  identified) and read 4% low. In `--json`, compare `wall_seconds` with the sum of the request times to spot it.
+- **One default server, no fallback.** If `speed.cloudflare.com` is slow, blocked or down from your network,
+  the default run reads low or fails. Pass another URL as the argument.
+
+Limits (by design or not yet built):
 
 - The result measures the path to the server you chose. A far-away or slow server reads low even on a fast
   connection.
+- netspeed reads about 3 to 4% below speedtest.net, because the wall clock includes connection setup and the
+  start of each transfer. This is expected, not an error (see the experiment).
+- One sequential connection may not fill a fast line, so the default mode can read low there. Use
+  `--parallel 4` to compare with multi-connection tests.
+- Agreement with speedtest.net is only proven at about 33 Mbit/s, on one line and one server.
 - Only download speed is measured, not upload or latency.
 
 ## If we had more time
