@@ -127,8 +127,9 @@ Notes on the data:
 **netspeed measures download speed as well as speedtest.net does.** speedtest.net is the most widely used
 public speed test, which makes it a fair reference: a tool that keeps agreeing with it is measuring the line,
 not printing arbitrary numbers. Across all 12 paired measurements, netspeed read 96 to 97% of speedtest.net's
-figure, on both connections and in both modes. Its run-to-run spread was as tight as speedtest.net's, or
-tighter (32.66 to 32.80 Mbit/s for `--parallel 4` against 33.71 to 33.89). The small, steady 3 to 4% gap is
+figure, on both connections and in both modes. In `--parallel 4` its run-to-run spread was tighter than
+speedtest.net's (32.66 to 32.80 Mbit/s against 33.71 to 33.89); sequential was as steady except for the one
+stalled LAN run noted under Results. The small, steady 3 to 4% gap is
 what the two methods predict: speedtest.net reports close to peak throughput, while netspeed divides the bytes
 by the whole wall-clock time, including connection setup and the start of each transfer. That makes netspeed a
 slightly conservative reading. It is not an error.
