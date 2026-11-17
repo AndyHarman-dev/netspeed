@@ -46,6 +46,8 @@ Use `--no-coverage`: with coverage on, a default value on a multi-line call is r
   `--parallel N` exists only for the speedtest.net comparison.
 - **Console output:** ASCII only (Windows consoles).
 - **Exit codes:** 0 ok, 1 network/HTTP error, 2 bad arguments.
+- **Timeouts:** `--timeout` (default 120 s) limits each whole request; `WAIT_TIMEOUT` (30 s, in `measure.py`)
+  limits each single wait for the server. Keep them separate.
 - **Unit tests:** never hit the network. Use `httpx.MockTransport` and a fake clock.
 - **Docs:** update README.md and this file with every user-visible change.
 - **Experiment:** it stays in `tests/experiment-lan-vs-wifi/`. The root README only links to it.

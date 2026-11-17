@@ -15,6 +15,9 @@ HEADERS = {"Cache-Control": "no-cache", "Accept-Encoding": "identity"}
 
 Clock = Callable[[], float]
 
+WAIT_TIMEOUT = 30.0
+"""Seconds any single wait for the server (connect, next chunk) may take."""
+
 
 class MeasureError(Exception):
     """A request failed; the run produced no trustworthy speed."""
@@ -42,8 +45,10 @@ def effective_parallel(count: int, parallel: int) -> int:
     return min(count, parallel)
 
 
-def _make_client(timeout: float, transport: httpx.BaseTransport | None) -> httpx.Client:
-    return httpx.Client(timeout=timeout, transport=transport, follow_redirects=True)
+def _make_client(transport: httpx.BaseTransport | None) -> httpx.Client:
+    return httpx.Client(
+        timeout=httpx.Timeout(WAIT_TIMEOUT), transport=transport, follow_redirects=True
+    )
 
 
 def _cache_busted(url: str) -> httpx.URL:
@@ -63,18 +68,24 @@ class _Job:
     keepalive: bool
     transport: httpx.BaseTransport | None
     clock: Clock
+    timer: Clock
     record: Callable[[RequestResult], None]
     stop: threading.Event
 
 
 def _fetch(client: httpx.Client, job: _Job, index: int) -> RequestResult:
     t0 = job.clock()
+    deadline = job.timer() + job.timeout
     size = 0
     with client.stream("GET", _cache_busted(job.url), headers=HEADERS) as response:
         response.raise_for_status()
         for chunk in response.iter_raw():
             if job.stop.is_set():
                 raise _Cancelled
+            if job.timer() > deadline:
+                raise httpx.ReadTimeout(
+                    f"took longer than {job.timeout:g} s", request=response.request
+                )
             size += len(chunk)
         status = response.status_code
     return RequestResult(index=index, status=status, bytes=size, seconds=job.clock() - t0)
@@ -83,13 +94,13 @@ def _fetch(client: httpx.Client, job: _Job, index: int) -> RequestResult:
 def _fetch_once(job: _Job, shared: httpx.Client | None, index: int) -> RequestResult:
     if shared is not None:
         return _fetch(shared, job, index)
-    with _make_client(job.timeout, job.transport) as fresh:
+    with _make_client(job.transport) as fresh:
         return _fetch(fresh, job, index)
 
 
 def _worker(job: _Job, indices: Iterable[int]) -> None:
     """Fetch `indices` one at a time on this worker's own client(s)."""
-    shared = _make_client(job.timeout, job.transport) if job.keepalive else None
+    shared = _make_client(job.transport) if job.keepalive else None
     try:
         for index in indices:
             try:
@@ -132,23 +143,34 @@ def _recorder(
 def run(
     url: str,
     count: int = 10,
-    timeout: float = 30.0,
+    timeout: float = 120.0,
     keepalive: bool = True,
     transport: httpx.BaseTransport | None = None,
     clock: Clock = time.perf_counter,
     parallel: int = 1,
     progress: Callable[[RequestResult], None] | None = None,
+    timer: Clock = time.monotonic,
 ) -> RunResult:
     """Fetch `url` `count` times over `parallel` connections (1 = sequential).
 
     Each worker handles every N-th request index on its own client, one request at a
     time, so `parallel=1` is exactly the sequential loop. The first failure stops all
     workers and raises MeasureError; no partial result is returned.
+
+    `timeout` limits each whole request, measured on `timer`; WAIT_TIMEOUT separately
+    limits each single wait for the server.
     """
     workers = effective_parallel(count, parallel)
     results: list[RequestResult] = []
     job = _Job(
-        url, timeout, keepalive, transport, clock, _recorder(results, progress), threading.Event()
+        url,
+        timeout,
+        keepalive,
+        transport,
+        clock,
+        timer,
+        _recorder(results, progress),
+        threading.Event(),
     )
 
     run_start = clock()

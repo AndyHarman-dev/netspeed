@@ -59,8 +59,8 @@ def _parser() -> argparse.ArgumentParser:
     p.add_argument(
         "--timeout",
         type=_positive_float,
-        default=30.0,
-        help="per-request timeout in seconds (default: 30)",
+        default=120.0,
+        help="limit on each whole request in seconds (default: 120)",
     )
     p.add_argument("--json", action="store_true", help="print one JSON object instead of text")
     p.add_argument(

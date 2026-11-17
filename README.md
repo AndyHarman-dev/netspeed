@@ -41,7 +41,7 @@ netspeed [URL] [--count N] [--timeout SEC] [--json] [--no-keepalive] [--parallel
 |---|---|---|
 | `URL` | `https://speed.cloudflare.com/__down?bytes=25000000` | The file to download (http or https). A large file works best; a 25 MB or larger file gives stable numbers. |
 | `--count N` | `10` | How many times to download it. |
-| `--timeout SEC` | `30` | Per-request timeout. |
+| `--timeout SEC` | `120` | Limit on each whole request, connecting and downloading included. Separately, any single wait for the server (connecting, or the next chunk of data) is limited to 30 s, so a dead connection is noticed quickly. |
 | `--json` | off | Print one JSON object (every request, totals, speed, timestamp) instead of text. |
 | `--no-keepalive` | off | Open a new connection for every request, instead of reusing one. |
 | `--parallel N` | `1` | Spread the requests over N connections at once. See [Parallel mode](#parallel-mode). |
@@ -100,9 +100,6 @@ the speed down. With 12, all four connections stay busy until the end.
 
 Known problems (behaviour that is wrong or misleading today):
 
-- **`--timeout` does not cap a whole request.** The help text says "per-request timeout", but it is passed to
-  httpx as a per-operation limit: connecting, and each wait for the next chunk of data. A download that
-  trickles in, with no single wait longer than the limit, can run far past `--timeout` seconds.
 - **An uneven `--parallel` split lowers the result.** With the default 10 requests over 4 connections, the split
   is 3, 3, 2, 2, and the end of the run uses only two connections. Pick a `--count` that N divides evenly (see
   [Parallel mode](#parallel-mode)).
@@ -122,6 +119,10 @@ Limits (by design or not yet built):
   `--parallel 4` to compare with multi-connection tests.
 - Agreement with speedtest.net is only proven at about 33 Mbit/s, on one line and one server.
 - Only download speed is measured, not upload or latency.
+- `--timeout` is checked as each chunk of data arrives, so a request can overrun it by at most one wait
+  for the next chunk (30 s at most).
+- The default `--timeout 120` lets a 25 MB download take two minutes, which fails below about 1.7 Mbit/s
+  per connection. On a slower line, or with many `--parallel` connections sharing a slow line, raise it.
 
 ## If we had more time
 

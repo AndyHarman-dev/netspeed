@@ -42,7 +42,7 @@ def test_defaults_are_ten_sequential_keepalive_requests_to_default_url(fake_run)
     assert fake_run == {
         "url": cli.DEFAULT_URL,
         "count": 10,
-        "timeout": 30.0,
+        "timeout": 120.0,
         "keepalive": True,
         "parallel": 1,
     }
