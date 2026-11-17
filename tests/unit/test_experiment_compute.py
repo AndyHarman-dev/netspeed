@@ -49,7 +49,7 @@ def test_accuracy_is_tool_over_speedtest_per_condition(csv_path):
 def test_render_prints_markdown_tables(csv_path, capsys):
     assert compute.main(["compute.py", str(csv_path)]) == 0
     out = capsys.readouterr().out
-    assert "| netspeed --parallel 4 | 85.0 | 180.0 | +111.8% |" in out
+    assert "| netspeed --count 12 --parallel 4 | 85.0 | 180.0 | +111.8% |" in out
     assert "| speedtest.net | 100.0 | 200.0 | +100.0% |" in out
     assert "| netspeed (sequential) | 45% | 45% |" in out
 

@@ -358,6 +358,11 @@ run `uv run python tests/experiment-lan-vs-wifi/compute.py` and get a markdown t
   mocks use `ByteStream`. mutator skips `tests/`, so `compute.py` has no mutation score. Verification: 50 tests; crapper worst 7.0 at
   100% coverage; dryer none at 0.8; mutator 33/33. Live run: seq ≈ par ≈ 31 Mbit/s, parallel wall 10.4 s vs 36.1 s summed.
   Live SIGINT stops in 0.0 s / 0.1 s. CI: see the push. Phase 6 (the Windows experiment) needs user action.
+- **2026-11-17**: context: a side-agent note said `--parallel 4` with the default 10 requests splits 3/3/2/2, so only 2
+  connections run at the end of the run, which can read low on links one connection can't fill. Actions: no code change (user's call).
+  The README now recommends a `--count` that N divides evenly. The experiment protocol now runs `--count 12 --parallel 4` instead of
+  the plan's `--parallel 4`, and the compute.py label matches. The sequential run stays at the specified 10. Verification: split confirmed
+  from `range(w, count, N)`; 50 tests pass.
 
 ## Decisions Log
 

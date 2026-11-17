@@ -62,7 +62,7 @@ def percentages(med: Medians) -> Percentages:
 def render(med: Medians, pct: Percentages) -> str:
     label = {
         "tool_seq_mbps": "netspeed (sequential)",
-        "tool_par_mbps": "netspeed --parallel 4",
+        "tool_par_mbps": "netspeed --count 12 --parallel 4",
         "speedtest_mbps": "speedtest.net",
     }
     lines = [

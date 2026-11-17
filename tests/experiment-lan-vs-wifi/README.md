@@ -33,8 +33,9 @@ Read this before the numbers. The two tools do not measure the same thing.
 - **netspeed (sequential, the default)** downloads one file 10 times, one after another, over a
   single TCP connection, from the URL you give it. On a fast link one connection often can't fill the
   line, because of TCP window size, latency to the server, and how fast the server sends.
-- **netspeed `--parallel 4`** downloads the same 10 files over 4 connections at once. This is the
-  like-for-like comparison with speedtest.net.
+- **netspeed `--count 12 --parallel 4`** downloads 12 files over 4 connections at once, 3 each. This is the
+  like-for-like comparison with speedtest.net. The count is 12 rather than the default 10 so that 4 divides it
+  evenly. With 10, the split is 3, 3, 2, 2, and the last stretch of the run would use only 2 connections.
 - **speedtest.net** opens several connections at once to a nearby server picked for speed, and
   reports roughly its peak throughput.
 
@@ -54,7 +55,7 @@ Expected effects:
    - **Wi-Fi (`wifi`):** Ethernet cable unplugged, Wi-Fi connected to the router.
    - **LAN (`lan`):** cable plugged in **and Wi-Fi turned off**. If Wi-Fi stays on, Windows may
      keep routing traffic over it.
-3. **Pre-check (LAN, once).** Run `netspeed --parallel 4` and a speedtest.net test. If netspeed reads far
+3. **Pre-check (LAN, once).** Run `netspeed --count 12 --parallel 4` and a speedtest.net test. If netspeed reads far
    below speedtest.net (under about half), the Cloudflare default URL is a poor server for you. In that case,
    pick a large file (100 MB or more) on a nearby fast server, such as your ISP's test file or a local
    mirror, and use **that same URL in every run**. Write the URL in Setup. In speedtest.net, pick a server
@@ -65,7 +66,7 @@ Expected effects:
    this folder:
    ```powershell
    netspeed $URL --json > raw\wifi-1-seq.json
-   netspeed $URL --parallel 4 --json > raw\wifi-1-par.json
+   netspeed $URL --count 12 --parallel 4 --json > raw\wifi-1-par.json
    # then speedtest.net in the browser (same server), note the Download Mbit/s
    ```
    (Use `lan-2-seq.json` and so on for the other runs. Leave `$URL` out if you kept the default.)

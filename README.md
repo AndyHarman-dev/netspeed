@@ -91,6 +91,11 @@ connection to one server often can't fill the line. A single stream then reads l
 `--parallel 4` closes most of that gap. The default sequential mode answers a different question: how
 fast one download of this file is.
 
+**Tip: pick a `--count` that N divides evenly**, such as `--count 12 --parallel 4`. The requests are dealt out to
+the connections in turn, so the default 10 over 4 connections splits 3, 3, 2, 2. At the end of the run only
+two connections are still downloading, and on a link that one connection can't fill, that tail pulls
+the speed down. With 12, all four connections stay busy until the end.
+
 ## Limits
 
 - The result measures the path to the server you chose. A far-away or slow server reads low even on a fast
