@@ -1,5 +1,5 @@
 ---
-status: Pending
+status: InProgress
 ---
 
 # Plan: cross-platform internet speed CLI (Python) + LAN vs Wi-Fi experiment
