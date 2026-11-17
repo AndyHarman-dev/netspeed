@@ -6,7 +6,7 @@ status: Pending
 
 ## Context
 
-Greenfield repo at `~/dev/speedtest`, remote `origin` = `https://github.com/AndyHarman-dev/speedtest.git`
+Greenfield repo at `~/dev/netspeed`, remote `origin` = `https://github.com/AndyHarman-dev/netspeed.git`
 (empty on GitHub as of 2026-11-17). Scaffold branch: `chore/scaffold`.
 
 Assignment (verbatim scope):
@@ -25,7 +25,7 @@ root README/CLAUDE.md. The root README only links to it.
 
 | Topic | Decision |
 |---|---|
-| Distribution | `uv tool install git+https://github.com/AndyHarman-dev/speedtest.git`. uv provisions Python on Windows, so there is no separate install. |
+| Distribution | `uv tool install git+https://github.com/AndyHarman-dev/netspeed.git`. uv provisions Python on Windows, so there is no separate install. |
 | Packaging | `pyproject.toml`, src layout, hatchling build backend, `requires-python >= 3.10` |
 | HTTP | `httpx` (the only runtime dependency) |
 | CLI parsing | stdlib `argparse`, to avoid a second dependency |
@@ -40,23 +40,18 @@ root README/CLAUDE.md. The root README only links to it.
 | Reported % | LAN gain over Wi-Fi (tool and speedtest.net), plus tool ÷ speedtest.net per condition |
 | CI | GitHub Actions: ruff + pytest on ubuntu / windows / macos |
 | Git | `main` pushed to GitHub as the default branch (user OK, 2026-11-17). Feature work happens on branches off `main`. |
-| Command / package name | `speedtest` (user decision 2026-11-17, overriding the proposed `netspeed`) |
+| Command / package / repo name | `netspeed` (user decision 2026-11-17). Repo: `AndyHarman-dev/netspeed`, local `~/dev/netspeed`. The tool is not associated with any third-party speed-test product; speedtest.net appears only as the experiment's reference. |
 | `--parallel N` | Optional, default `1`, which is the specified sequential behaviour and stays untouched. `N > 1` spreads the same `--count` requests over N concurrent connections. It exists **only** to give an apples-to-apples comparison with speedtest.net's multi-stream test. |
-
-**Name-clash note.** The command `speedtest` shares its name with Ookla's official CLI and `speedtest-cli`. uv installs
-tools in isolated environments, so the Python import never clashes. Only PATH order matters if one of those is also
-installed. The README gets a "check with `where speedtest` (Windows) / `which speedtest`" note, and `speedtest --version`
-prints our own name and version so the user can tell which one ran.
 
 ## Target layout
 
 ```
-speedtest/
+netspeed/
 ├── .github/workflows/ci.yml
 ├── .claude/plans/
-├── src/speedtest/
+├── src/netspeed/
 │   ├── __init__.py        # __version__
-│   ├── __main__.py        # python -m speedtest
+│   ├── __main__.py        # python -m netspeed
 │   ├── cli.py             # argparse, output formatting, exit codes
 │   ├── measure.py         # httpx request loop, timing (injectable transport + clock)
 │   └── stats.py           # pure maths: aggregate speed, avg time, unit conversion
@@ -78,7 +73,7 @@ speedtest/
 
 **Model: Sonnet 5** — Mechanical git and file housekeeping. No axis is in the Opus column.
 
-**Current State.** `~/dev/speedtest` is git-initialised on `chore/scaffold` with `origin` set. It holds empty
+**Current State.** `~/dev/netspeed` is git-initialised on `chore/scaffold` with `origin` set. It holds empty
 `README.md`/`CLAUDE.md`, `.claude/plans/` and `tests/`. Nothing is committed yet, and the GitHub repo is empty.
 
 **Desired State.** The scaffold and this plan are committed on `chore/scaffold`. Once the plan is approved,
@@ -101,7 +96,7 @@ GitHub has a sensible default branch.
 
 **Current State.** There is no Python project.
 
-**Desired State.** `uv sync` works, `uv run speedtest --help` prints usage, `uv run pytest` collects
+**Desired State.** `uv sync` works, `uv run netspeed --help` prints usage, `uv run pytest` collects
 `tests/unit` only, and `uv run ruff check` is clean. CLAUDE.md holds the dev commands and conventions.
 
 **Problems.** pytest would try to collect `tests/experiment-lan-vs-wifi/compute.py` and its folder.
@@ -109,11 +104,11 @@ GitHub has a sensible default branch.
 **Solutions.**
 ```toml
 [project]
-name = "speedtest"
+name = "netspeed"
 requires-python = ">=3.10"
 dependencies = ["httpx>=0.27"]
 [project.scripts]
-speedtest = "speedtest.cli:main"
+netspeed = "netspeed.cli:main"
 [dependency-groups]
 dev = ["pytest", "ruff"]
 [tool.pytest.ini_options]
@@ -123,7 +118,7 @@ requires = ["hatchling"]
 build-backend = "hatchling.build"
 ```
 - Add a `.gitignore` (venv, `__pycache__`, dist, `.ruff_cache`) and pin `.python-version` to 3.12.
-- CLAUDE.md gets the purpose, layout, commands (`uv sync`, `uv run pytest`, `uv run ruff check`, `uv run speedtest`),
+- CLAUDE.md gets the purpose, layout, commands (`uv sync`, `uv run pytest`, `uv run ruff check`, `uv run netspeed`),
   the rules "keep README/CLAUDE.md updated with every user-visible change" and "the experiment lives only in tests/experiment-*".
 
 ## Phase 2 — Measurement core (`stats.py`, `measure.py`)
@@ -203,7 +198,7 @@ capturing stdout/exit codes.
 
 **Desired State.**
 ```
-$ speedtest https://example.com/big.jpg
+$ netspeed https://example.com/big.jpg
 Knocking on https://example.com/big.jpg — 10 requests, keep-alive
   #1  2.31 s  25.00 MB
   ...
@@ -214,8 +209,7 @@ Download speed:    87.56 Mbit/s
 ```
 `--json` prints a single JSON object (url, count, parallel, keepalive, per-request list, totals, wall-clock
 seconds, `mbps`, `timestamp`, `version`) and nothing else on stdout. With `--parallel N` the header reads
-`10 requests over 4 parallel connections, keep-alive`. `--version` prints `speedtest (AndyHarman-dev) X.Y.Z`, so it is
-distinguishable from Ookla's CLI.
+`10 requests over 4 parallel connections, keep-alive`. `--version` prints `netspeed X.Y.Z`.
 
 **Problems.**
 1. Windows consoles may choke on non-ASCII (`—`, `·`).
@@ -237,12 +231,11 @@ distinguishable from Ookla's CLI.
 **Desired State.** README covers what the tool does, install (uv on Windows/macOS/Linux, including the uv install one-liners),
 usage and flags, **units section** (Mbit/s = 10^6 bit/s, MB = 10^6 bytes, formula), how measurement works (sequential,
 full body, cache-bust, keep-alive), the optional `--parallel N` comparison mode (and why it exists), limits (a single
-TCP stream reads lower than multi-stream speedtest.net on fast links), a PATH note about Ookla's `speedtest`
-(`where speedtest` / `speedtest --version`), and a link to `tests/experiment-lan-vs-wifi/README.md`. CI is green on ubuntu, windows and macos.
+TCP stream reads lower than multi-stream speedtest.net on fast links), and a link to `tests/experiment-lan-vs-wifi/README.md`. CI is green on ubuntu, windows and macos.
 
 **Solutions.**
 - `.github/workflows/ci.yml`: `astral-sh/setup-uv`, matrix `os × python [3.10, 3.13]`,
-  `uv sync`, `uv run ruff check`, `uv run pytest`, plus a smoke test `uv run speedtest --help`.
+  `uv sync`, `uv run ruff check`, `uv run pytest`, plus a smoke test `uv run netspeed --help`.
   No live network test in CI, because it would be flaky.
 
 ## Phase 5 — Experiment kit (`tests/experiment-lan-vs-wifi/`)
@@ -276,8 +269,8 @@ run `uv run python tests/experiment-lan-vs-wifi/compute.py` and get a markdown t
      nearby edge). If it reads far below speedtest.net on LAN, pick a large file on a nearby fast server
      (e.g. your ISP's or a local mirror's test file), use that same URL for **every** run, and record it.
   5. Order W, L, W, L, W, L. Each run has three back-to-back measurements:
-     - `speedtest --json > raw/<cond>-<n>-seq.json` (the specified mode)
-     - `speedtest --parallel 4 --json > raw/<cond>-<n>-par.json` (comparison mode)
+     - `netspeed --json > raw/<cond>-<n>-seq.json` (the specified mode)
+     - `netspeed --parallel 4 --json > raw/<cond>-<n>-par.json` (comparison mode)
      - speedtest.net in the browser, using the same server for every run (note the server name). Record the download Mbit/s.
   6. Fill `results.csv`: `run,condition,tool_seq_mbps,tool_par_mbps,speedtest_mbps,timestamp,notes`.
 - `compute.py` (stdlib only): medians per condition →
@@ -314,7 +307,7 @@ run `uv run python tests/experiment-lan-vs-wifi/compute.py` and get a markdown t
 
 **Model: Sonnet 5** — Routine review pass via `/code-review low` (Sonnet), triaged by the main session.
 
-- `cd ~/dev/speedtest`, confirm the branch, run `/code-review low <branch>`, triage findings (apply, reject or escalate).
+- `cd ~/dev/netspeed`, confirm the branch, run `/code-review low <branch>`, triage findings (apply, reject or escalate).
 - Ask whether to open a PR into `main`.
 
 **Routing:** All phases → Sonnet 5. Tripwires: Phase 2 (compression/byte semantics), Phase 2b (concurrency serialising), Phase 6 (implausible results).
@@ -325,8 +318,8 @@ run `uv run python tests/experiment-lan-vs-wifi/compute.py` and get a markdown t
 
 | Phase | Check |
 |---|---|
-| 1 | `uv sync && uv run speedtest --help && uv run pytest && uv run ruff check` |
-| 2–3 | Unit tests green. A live `--parallel 4` run has wall clock clearly below the sum of request times. A manual `uv run speedtest` against the default URL prints a plausible Mbit/s, which is cross-checked against speedtest.net on the Mac. |
+| 1 | `uv sync && uv run netspeed --help && uv run pytest && uv run ruff check` |
+| 2–3 | Unit tests green. A live `--parallel 4` run has wall clock clearly below the sum of request times. A manual `uv run netspeed` against the default URL prints a plausible Mbit/s, which is cross-checked against speedtest.net on the Mac. |
 | 4 | CI green on all 3 OSes |
 | 5 | `compute.py` unit tests green. A dry run on a sample CSV prints the table. |
 | 6 | Real Windows numbers in the CSV. Both tool modes' gains have the same sign as speedtest.net's, and `--parallel` accuracy is within ~50–120%. |
@@ -348,6 +341,11 @@ run `uv run python tests/experiment-lan-vs-wifi/compute.py` and get a markdown t
   wall clock so it is correct under concurrency (identical in sequential mode). The experiment now records seq, par and
   speedtest.net per run, and the Phase 6 tripwires key on parallel accuracy. Fast-forwarded `main` to the scaffold+plan commits and
   pushed it as the GitHub default. Verification: push verified via `git ls-remote --symref`. The plan itself is still under user review.
+- **2026-11-17**: context: user reversed the name decision to `netspeed` to avoid any association with Ookla's
+  `speedtest` (the GitHub repo was renamed to `AndyHarman-dev/netspeed`). Actions: renamed every tool, package, repo and path
+  reference to `netspeed` (only speedtest.net references in the experiment remain), dropped the PATH/name-clash note, renamed
+  the local dir to `~/dev/netspeed` and this plan to `2026-11-17-netspeed-cli.md`, pointed `origin` at the new URL and pushed `main`.
+  The earlier change-log entries keep the old name as history. Verification: verified the remote HEAD via `git ls-remote --symref`.
 
 ## Decisions Log
 
