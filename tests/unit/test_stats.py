@@ -35,3 +35,7 @@ def test_zero_wall_clock_is_rejected_rather_than_dividing_by_zero():
 def test_empty_run_is_rejected():
     with pytest.raises(ValueError):
         summarise(_run([], wall=1.0))
+
+
+def test_sub_second_runs_are_valid():
+    assert summarise(_run([(1_000_000, 0.5)], wall=0.5)).mbps == pytest.approx(16.0)

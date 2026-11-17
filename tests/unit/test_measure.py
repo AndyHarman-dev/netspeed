@@ -74,7 +74,7 @@ def test_timings_come_from_the_injected_clock():
 
 def test_http_error_raises_measure_error():
     t = httpx.MockTransport(lambda r: httpx.Response(404))
-    with pytest.raises(MeasureError, match="404"):
+    with pytest.raises(MeasureError, match=r"request #1 failed.*404"):
         run("http://h/", count=3, transport=t)
 
 
@@ -114,3 +114,11 @@ def test_progress_callback_sees_every_request():
     got = []
     run("http://h/", count=3, transport=ok_transport(), progress=got.append)
     assert sorted(r.index for r in got) == [0, 1, 2]
+
+
+def test_keepalive_is_the_default(monkeypatch):
+    made = []
+    real = measure._make_client
+    monkeypatch.setattr(measure, "_make_client", lambda *a: made.append(1) or real(*a))
+    result = run("http://h/", count=3, transport=ok_transport())
+    assert len(made) == 1 and result.keepalive is True

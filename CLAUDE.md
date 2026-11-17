@@ -23,6 +23,19 @@ uv run ruff check       # lint
 uv run ruff format      # format
 ```
 
+## Quality gates (ub-mode)
+
+These use the unclebob tools (`crapper`, `dryer`, `mutator`, installed on PATH outside the repo). They write to `.metrics/`, which is gitignored.
+
+```sh
+crapper                       # CRAP per function in src/: keep every function < 10
+dryer --threshold 0.8 src     # structural duplication: none at >= 0.8
+mutator --no-coverage src     # mutation testing: no survivors
+```
+
+`mutator` skips anything under `tests/`, so `compute.py` has coverage and CRAP scores but no mutation score.
+Use `--no-coverage`: with coverage on, a default value on a multi-line call is reported as UNCOVERED by mistake.
+
 ## Conventions
 
 - **Name:** the tool is `netspeed`. Never call it "speedtest", and don't associate it with Ookla.

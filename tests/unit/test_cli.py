@@ -106,3 +106,18 @@ def test_bad_arguments_exit_2(argv, fake_run):
     with pytest.raises(SystemExit) as exc:
         cli.main(argv)
     assert exc.value.code == 2
+
+
+def test_smallest_valid_values_are_accepted(fake_run):
+    assert cli.main(["http://h/", "--count", "1", "--timeout", "0.5"]) == 0
+    assert fake_run["count"] == 1 and fake_run["timeout"] == 0.5
+
+
+def test_progress_line_shows_seconds_and_megabytes(fake_run, capsys):
+    cli.main(["http://h/", "--count", "1"])
+    assert "  #1     2.000 s     25.00 MB" in capsys.readouterr().err
+
+
+def test_parallel_within_count_does_not_warn(fake_run, capsys):
+    cli.main(["http://h/", "--count", "4", "--parallel", "4"])
+    assert "warning" not in capsys.readouterr().err.lower()

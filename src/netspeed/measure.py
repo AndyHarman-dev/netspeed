@@ -59,6 +59,63 @@ def _fetch(client: httpx.Client, url: str, index: int, clock: Clock) -> RequestR
     return RequestResult(index=index, status=status, bytes=size, seconds=clock() - t0)
 
 
+@dataclass(frozen=True)
+class _Job:
+    """Everything a worker needs; shared read-only between workers."""
+
+    url: str
+    timeout: float
+    keepalive: bool
+    transport: httpx.BaseTransport | None
+    clock: Clock
+    record: Callable[[RequestResult], None]
+    stop: threading.Event
+
+
+def _fetch_once(job: _Job, shared: httpx.Client | None, index: int) -> RequestResult:
+    if shared is not None:
+        return _fetch(shared, job.url, index, job.clock)
+    with _make_client(job.timeout, job.transport) as fresh:
+        return _fetch(fresh, job.url, index, job.clock)
+
+
+def _worker(job: _Job, indices: Iterable[int]) -> None:
+    """Fetch `indices` one at a time on this worker's own client(s)."""
+    shared = _make_client(job.timeout, job.transport) if job.keepalive else None
+    try:
+        for index in indices:
+            if job.stop.is_set():
+                return
+            try:
+                job.record(_fetch_once(job, shared, index))
+            except httpx.HTTPError as exc:
+                job.stop.set()
+                raise MeasureError(f"request #{index + 1} failed: {exc}") from exc
+    finally:
+        if shared is not None:
+            shared.close()
+
+
+def _run_workers(job: _Job, slices: list[range]) -> None:
+    with ThreadPoolExecutor(max_workers=len(slices)) as pool:
+        for future in [pool.submit(_worker, job, s) for s in slices]:
+            future.result()
+
+
+def _recorder(
+    results: list[RequestResult], progress: Callable[[RequestResult], None] | None
+) -> Callable[[RequestResult], None]:
+    lock = threading.Lock()
+
+    def record(result: RequestResult) -> None:
+        with lock:
+            results.append(result)
+            if progress is not None:
+                progress(result)
+
+    return record
+
+
 def run(
     url: str,
     count: int = 10,
@@ -76,42 +133,13 @@ def run(
     workers and raises MeasureError; no partial result is returned.
     """
     workers = effective_parallel(count, parallel)
-    stop = threading.Event()
-    lock = threading.Lock()
     results: list[RequestResult] = []
+    job = _Job(
+        url, timeout, keepalive, transport, clock, _recorder(results, progress), threading.Event()
+    )
 
-    def record(result: RequestResult) -> None:
-        with lock:
-            results.append(result)
-            if progress is not None:
-                progress(result)
-
-    def worker(indices: Iterable[int]) -> None:
-        client = _make_client(timeout, transport) if keepalive else None
-        try:
-            for i in indices:
-                if stop.is_set():
-                    return
-                if keepalive:
-                    record(_fetch(client, url, i, clock))
-                else:
-                    with _make_client(timeout, transport) as fresh:
-                        record(_fetch(fresh, url, i, clock))
-        except httpx.HTTPError as exc:
-            stop.set()
-            raise MeasureError(f"request #{i + 1} failed: {exc}") from exc
-        finally:
-            if client is not None:
-                client.close()
-
-    slices = [range(w, count, workers) for w in range(workers)]
     run_start = clock()
-    if workers == 1:
-        worker(slices[0])
-    else:
-        with ThreadPoolExecutor(max_workers=workers) as pool:
-            for future in [pool.submit(worker, s) for s in slices]:
-                future.result()
+    _run_workers(job, [range(w, count, workers) for w in range(workers)])
     run_end = clock()
 
     return RunResult(
