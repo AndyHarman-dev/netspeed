@@ -1,0 +1,75 @@
+{
+  "url": "https://speed.cloudflare.com/__down?bytes=25000000",
+  "count": 10,
+  "parallel": 1,
+  "keepalive": true,
+  "requests": [
+    {
+      "index": 0,
+      "status": 200,
+      "bytes": 25000000,
+      "seconds": 6.128709000000526
+    },
+    {
+      "index": 1,
+      "status": 200,
+      "bytes": 25000000,
+      "seconds": 6.074861499999315
+    },
+    {
+      "index": 2,
+      "status": 200,
+      "bytes": 25000000,
+      "seconds": 6.275087399999393
+    },
+    {
+      "index": 3,
+      "status": 200,
+      "bytes": 25000000,
+      "seconds": 6.052328399999169
+    },
+    {
+      "index": 4,
+      "status": 200,
+      "bytes": 25000000,
+      "seconds": 6.259188500000164
+    },
+    {
+      "index": 5,
+      "status": 200,
+      "bytes": 25000000,
+      "seconds": 6.052212399999917
+    },
+    {
+      "index": 6,
+      "status": 200,
+      "bytes": 25000000,
+      "seconds": 6.249721600001067
+    },
+    {
+      "index": 7,
+      "status": 200,
+      "bytes": 25000000,
+      "seconds": 6.067325900001379
+    },
+    {
+      "index": 8,
+      "status": 200,
+      "bytes": 25000000,
+      "seconds": 6.0527588999993895
+    },
+    {
+      "index": 9,
+      "status": 200,
+      "bytes": 25000000,
+      "seconds": 6.059402099999716
+    }
+  ],
+  "total_bytes": 250000000,
+  "total_mb": 250.0,
+  "avg_seconds": 6.127159570000003,
+  "wall_seconds": 61.659971200000655,
+  "mbps": 32.43595417053939,
+  "timestamp": "2026-11-17T22:50:25+00:00",
+  "version": "0.1.0"
+}

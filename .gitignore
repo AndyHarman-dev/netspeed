@@ -1,0 +1,12 @@
+.venv/
+__pycache__/
+*.pyc
+dist/
+build/
+.ruff_cache/
+.pytest_cache/
+.metrics/
+target/
+.metrics/
+target/
+.coverage

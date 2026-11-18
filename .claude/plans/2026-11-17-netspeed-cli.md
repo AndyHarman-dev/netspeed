@@ -1,5 +1,5 @@
 ---
-status: Pending
+status: Done
 ---
 
 # Plan: cross-platform internet speed CLI (Python) + LAN vs Wi-Fi experiment
@@ -346,6 +346,35 @@ run `uv run python tests/experiment-lan-vs-wifi/compute.py` and get a markdown t
   reference to `netspeed` (only speedtest.net references in the experiment remain), dropped the PATH/name-clash note, renamed
   the local dir to `~/dev/netspeed` and this plan to `2026-11-17-netspeed-cli.md`, pointed `origin` at the new URL and pushed `main`.
   The earlier change-log entries keep the old name as history. Verification: verified the remote HEAD via `git ls-remote --symref`.
+- **2026-11-17**: context: implement Phases 1–5 and 7 under ub-mode on `feat/netspeed-cli` (branched from `main` @ 99e0227).
+  Actions: skeleton, measurement core plus `--parallel`, CLI, README/CI, experiment kit. The user wrote `percentages()` in
+  `compute.py`; I fixed its accuracy line (divided the metric name, not its value; missing ×100) and a wrong expected value in
+  my own test. Quality gates: added `coverage` to the dev group (uv venvs have no pip, so crapper scored 0%), split
+  `measure.run` (CRAP 10.0 → max 7), killed 10 surviving mutants with boundary tests, and deleted dead code.
+  `/code-review low` produced 3 findings. All 3 were applied after verification: Ctrl-C was ignored, which was my own regression
+  from deleting the single-worker fast path, so the mutant I'd called "equivalent" wasn't; a failure didn't abort in-flight
+  downloads; a malformed port crashed with a traceback. Decisions that differ from the plan: workers stop per body chunk, not
+  only between requests, and worker 0 runs on the calling thread. `httpx.Response(content=...)` can't be streamed, so test
+  mocks use `ByteStream`. mutator skips `tests/`, so `compute.py` has no mutation score. Verification: 50 tests; crapper worst 7.0 at
+  100% coverage; dryer none at 0.8; mutator 33/33. Live run: seq ≈ par ≈ 31 Mbit/s, parallel wall 10.4 s vs 36.1 s summed.
+  Live SIGINT stops in 0.0 s / 0.1 s. CI: see the push. Phase 6 (the Windows experiment) needs user action.
+- **2026-11-17**: context: a side-agent note said `--parallel 4` with the default 10 requests splits 3/3/2/2, so only 2
+  connections run at the end of the run, which can read low on links one connection can't fill. Actions: no code change (user's call).
+  The README now recommends a `--count` that N divides evenly. The experiment protocol now runs `--count 12 --parallel 4` instead of
+  the plan's `--parallel 4`, and the compute.py label matches. The sequential run stays at the specified 10. Verification: split confirmed
+  from `range(w, count, N)`; 50 tests pass.
+- **2026-11-17**: context: Phase 6, the Windows experiment. Actions: pulled the user's pre-check and six alternating runs; ran
+  compute.py; wrote Results, Conclusion and "How it was tested"; filled the Setup TODOs (40 Mbit/s plan, 1 Gbps link). Decisions:
+  the user corrected two of my assumptions (the six runs used the Telecentro, Buenos Aires server, not the pre-check's CABASE one;
+  Tailscale was off), and asked for the Conclusion to lead with netspeed's agreement with speedtest.net. Added "If we had more time"
+  and "Known problems and limits" to the root README. Verification: CSV mbps match raw JSON; netspeed 96-97% of speedtest.net in all
+  12 pairs; LAN gain 0% for every tool (plan-capped); no tripwire hit; one sequential run's 3.1 s stall noted, median unaffected.
+- **2026-11-17**: context: the known-problems list showed that `--timeout` was a per-wait httpx limit while its help said
+  "per-request". Actions: `--timeout` is now a whole-request deadline checked per chunk on an injectable `timer`; a separate fixed
+  `WAIT_TIMEOUT` of 30 s bounds each wait. Decisions: a side agent pointed out that a 30 s whole-request default would fail the
+  experiment's own `--parallel 4` downloads (19-29 s), so the user chose two limits with `--timeout` defaulting to 120 s. Verification:
+  55 tests; crapper worst 7.0; dryer none; mutator 35/35; live `--timeout 0.5` exits 1 with a clear error; /code-review low found
+  nothing; CI 6/6 green on 05bfa34.
 
 ## Decisions Log
 
